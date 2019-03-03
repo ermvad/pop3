@@ -15,7 +15,7 @@
 
 #define sizearray(a)  (sizeof(a) / sizeof((a)[0]))
 #define SPARESLOTS 128
-#define BUFSIZE 256
+#define BUFSIZE 24
 
 char server_reply[] = "Hello!";
 int efd;
@@ -61,6 +61,8 @@ int main() {
 
     ev.events = EPOLLIN;
     ev.data.fd = server.server_sock;
+    //void * aa = (void *) &server;
+    //ev.data.ptr = aa;
     if (epoll_ctl(efd, EPOLL_CTL_ADD, server.server_sock, &ev))
     {
         perror("epoll() failed");
@@ -85,44 +87,44 @@ int main() {
             else
             {
                 printf("Epoll triggered: data from client\n");
+                //struct client client = * (struct client *) ev.data.ptr;
                 client_action(ev.data.fd);
             }
         }
     }
 }
 
-void accept_client(int msock) {
-    int client_sock;
-    struct sockaddr_in client_addr;
+void accept_client(int socket) {
+    struct client client;
     struct epoll_event ev;
     socklen_t len;
-    len = sizeof(client_addr);
-    client_sock = accept(msock, (struct sockaddr*) &client_addr, &len);
-    if (client_sock < 0)
+    len = sizeof(client.client_addr);
+    client.client_sock = accept(socket, (struct sockaddr*) &client.client_addr, &len);
+    if (client.client_sock < 0)
     {
         perror("accept() failed");
         exit(EXIT_FAILURE);
     }
-    printf("\nConnected client - %s:%u\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+    printf("\nConnected client - %s:%u\n", inet_ntoa(client.client_addr.sin_addr), ntohs(client.client_addr.sin_port));
     ev.events = EPOLLIN;
-    ev.data.fd = client_sock;
-    if (epoll_ctl(efd, EPOLL_CTL_ADD, client_sock, &ev))
+    ev.data.fd = client.client_sock;
+    if (epoll_ctl(efd, EPOLL_CTL_ADD, client.client_sock, &ev))
     {
         perror("epoll() failed");
         exit(EXIT_FAILURE);
     }
 }
 
-void client_action(int fd) {
+void client_action(int socket) {
     char buf[BUFSIZE];
     int len;
     printf("\nReceived client request:\n");
     do
     {
-        len = read(fd, buf, BUFSIZE);
-        if (len>0) write(STDOUT_FILENO, buf, len);
+        len = read(socket, buf, BUFSIZE);
+        //if (len>0) write(STDOUT_FILENO, buf, len);
     } while (len == BUFSIZE);
     fflush(stdout);
-    write(fd, server_reply, sizeof(server_reply));
+    write(socket, buf, sizeof(len));
     //close(fd);
 }
