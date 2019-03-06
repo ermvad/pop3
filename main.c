@@ -76,6 +76,7 @@ int main() {
             perror("poll() failed");
             exit(EXIT_FAILURE);
         }
+        printf("Epoll events: %d\n", n);
         if (n > 0)
         {
             for(int i = 0; i < n; i++)
@@ -85,7 +86,6 @@ int main() {
                     accept_client(server.server_sock);
                 } else {
                     printf("Epoll triggered: data from client\n");
-                    //struct client client = * (struct client *) ev.data.ptr;
                     client_action(ev[i].data.fd);
                 }
             }
@@ -124,6 +124,6 @@ void client_action(int socket) {
         if (len>0) write(STDOUT_FILENO, buf, len);
     } while (len == BUFSIZE);
     fflush(stdout);
-    write(socket, buf, sizeof(len));
+    write(socket, buf, len);
     //close(fd);
 }
