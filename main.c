@@ -10,12 +10,12 @@
 #include <fcntl.h>
 #include <string.h>
 #include <sys/epoll.h>
+#include <sys/ioctl.h>
 #include "pop3.h"
 #include "minini_12b/minIni.h"
 
 #define sizearray(a)  (sizeof(a) / sizeof((a)[0]))
 #define SPARESLOTS 128
-#define BUFSIZE 24
 
 char server_reply[] = "Hello!";
 int efd;
@@ -115,15 +115,12 @@ void accept_client(int socket) {
 }
 
 void client_action(int socket) {
-    char buf[BUFSIZE];
-    int len;
+    int len = 0;
     printf("Received client request:\n");
-    do
-    {
-        len = read(socket, buf, BUFSIZE);
-        if (len>0) write(STDOUT_FILENO, buf, len);
-    } while (len == BUFSIZE);
+    ioctl(socket, FIONREAD, &len);
+    char buf[len];
+    read(socket, buf, len);
+    write(STDOUT_FILENO, buf, len);
     fflush(stdout);
     write(socket, buf, len);
-    //close(fd);
 }
