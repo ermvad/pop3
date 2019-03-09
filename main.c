@@ -17,11 +17,11 @@
 #define sizearray(a)  (sizeof(a) / sizeof((a)[0]))
 #define SPARESLOTS 128
 
-char server_reply[] = "Hello!";
 int efd;
 
 void accept_client(int);
-void client_action(int);
+void client_action(struct client *);
+void client_action_command(struct client *, char *, size_t);
 
 int main() {
     server.port = pop3_server_port;
@@ -82,13 +82,13 @@ int main() {
             for(int i = 0; i < n; i++)
             {
                 struct server srv = *(struct server *)ev[i].data.ptr;
-                struct client cli = *(struct client *)ev[i].data.ptr;
                 if (srv.server_sock == server.server_sock) {
                     printf("Epoll triggered: incoming connection\n");
                     accept_client(server.server_sock);
                 } else {
+                    struct client *cli = (struct client *)ev[i].data.ptr;
                     printf("Epoll triggered: data from client\n");
-                    client_action(cli.client_sock);
+                    client_action(cli);
                 }
             }
         }
@@ -96,48 +96,50 @@ int main() {
 }
 
 void accept_client(int socket) {
-    struct client client;
+    struct client *client = (struct client*) malloc(sizeof(struct client));
     struct epoll_event evs;
     socklen_t len;
-    len = sizeof(client.client_addr);
-    client.client_sock = accept(socket, (struct sockaddr*) &client.client_addr, &len);
-    if (client.client_sock < 0)
+    len = sizeof(client->client_addr);
+    client->client_sock = accept(socket, (struct sockaddr*) &(client->client_addr), &len);
+    if (client->client_sock < 0)
     {
         perror("accept() failed");
         exit(EXIT_FAILURE);
     }
-    printf("Connected client - %s:%u\n", inet_ntoa(client.client_addr.sin_addr), ntohs(client.client_addr.sin_port));
+    printf("Connected client - %s:%u\n", inet_ntoa(client->client_addr.sin_addr), ntohs(client->client_addr.sin_port));
     evs.events = EPOLLIN;
-    evs.data.ptr = &client;
-    if (epoll_ctl(efd, EPOLL_CTL_ADD, client.client_sock, &evs))
+    evs.data.ptr = client;
+    if (epoll_ctl(efd, EPOLL_CTL_ADD, client->client_sock, &evs))
     {
         perror("epoll() failed");
         exit(EXIT_FAILURE);
     }
 }
 
-void client_action(int socket) {
+void client_action(struct client *client)
+{
     struct epoll_event evs;
     size_t len = 0;
-    printf("Received client request:\n");
-    ioctl(socket, FIONREAD, &len);
-    char buf[len];
-    read(socket, buf, len);
-    write(STDOUT_FILENO, buf, len);
+    ioctl(client->client_sock, FIONREAD, &len);
+    if(!len)
+    {
+        close(client->client_sock);
+        free(client);
+        printf("Client closed connection\n");
+        fflush(stdout);
+    }
+    else
+    {
+        printf("Received client request:\n");
+        char buf[len];
+        read(client->client_sock, buf, len);
+        client_action_command(client, buf, len);
+    }
+}
+
+void client_action_command(struct client *client, char *cmd, size_t len)
+{
+    write(STDOUT_FILENO, cmd, len);
     fflush(stdout);
-    write(socket, buf, len);
-    struct client client;
-    client.client_sock = socket;
-    evs.events = EPOLLIN;
-    evs.data.ptr = &client;
-    if (epoll_ctl(efd, EPOLL_CTL_DEL, socket, NULL))
-    {
-        perror("epoll() failed");
-        exit(EXIT_FAILURE);
-    }
-    if (epoll_ctl(efd, EPOLL_CTL_ADD, socket, &evs))
-    {
-        perror("epoll() failed");
-        exit(EXIT_FAILURE);
-    }
+    write(client->client_sock, cmd, len);
 }

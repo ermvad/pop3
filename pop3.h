@@ -12,7 +12,7 @@ struct client
 {
     int client_sock;
     int connection_status; // 1 - connected, 0 disconnected
-    int pop3_session_status; // 1 - authorization, 2 - transaction, 3 - update
+    int pop3_session_status; // 0 - unauthorized, 1 - authorization, 2 - transaction, 3 - update
     int busy;
     char *name;
     struct sockaddr_in client_addr;
