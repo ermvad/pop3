@@ -22,6 +22,7 @@ int efd;
 void accept_client(int);
 void client_action(struct client *);
 void client_action_command(struct client *, char *, size_t);
+void client_close_connection(struct client *);
 
 int main() {
     server.port = pop3_server_port;
@@ -123,23 +124,56 @@ void client_action(struct client *client)
     ioctl(client->client_sock, FIONREAD, &len);
     if(!len)
     {
-        close(client->client_sock);
-        free(client);
-        printf("Client closed connection\n");
-        fflush(stdout);
+        client_close_connection(client);
     }
     else
     {
         printf("Received client request:\n");
-        char buf[len];
+        char buf[len-1];
         read(client->client_sock, buf, len);
         client_action_command(client, buf, len);
     }
 }
 
+void client_close_connection(struct client *client)
+{
+    close(client->client_sock);
+    free(client);
+    printf("Client closed connection\n");
+    fflush(stdout);
+}
+
 void client_action_command(struct client *client, char *cmd, size_t len)
 {
-    write(STDOUT_FILENO, cmd, len);
-    fflush(stdout);
-    write(client->client_sock, cmd, len);
+    //write(STDOUT_FILENO, cmd, len);
+    //fflush(stdout);
+    //if(len != write(client->client_sock, cmd, len))
+    //    client_close_connection(client);
+    char cmd_line[len-1], cmd_line_tmp[len-1];
+    memmove(cmd_line, cmd, len);
+    cmd_line[len-1] = '\0';
+    printf("%s\n", cmd_line);
+    strcpy(cmd_line_tmp,cmd_line);
+    char *saveptr;
+    char *pch = strtok_r (cmd_line_tmp, " ", &saveptr);
+    int cmd_args = 0;
+    char cmd_token[pop3_max_arg][len-1];
+    while (pch != NULL)
+    {
+        if(cmd_args > pop3_max_arg)
+        {
+            client_close_connection(client);
+            break;
+        }
+        else
+        {
+            strcpy(cmd_token[cmd_args], pch);
+            cmd_args++;
+            pch = strtok_r(NULL, " ", &saveptr);
+        }
+    }
+    for(int i=0; i<cmd_args; i++)
+    {
+        printf("%s\n", cmd_token[i]);
+    }
 }
