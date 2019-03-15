@@ -172,6 +172,7 @@ void client_action_command(struct client *client, char *cmd, size_t len)
             pch = strtok_r(NULL, " ", &saveptr);
         }
     }
+    //cond - CRLF
     for(int i=0; i<cmd_args; i++)
     {
         printf("%s\n", cmd_token[i]);
