@@ -22,7 +22,7 @@ int efd;
 void accept_client(int);
 void client_action(struct client *);
 void client_action_command(struct client *, char *, size_t);
-void client_close_connection(struct client *);
+void client_close_connection(struct client *, char *);
 
 int main() {
     server.port = pop3_server_port;
@@ -83,10 +83,13 @@ int main() {
             for(int i = 0; i < n; i++)
             {
                 struct server srv = *(struct server *)ev[i].data.ptr;
-                if (srv.server_sock == server.server_sock) {
+                if (srv.server_sock == server.server_sock)
+                {
                     printf("Epoll triggered: incoming connection\n");
                     accept_client(server.server_sock);
-                } else {
+                }
+                else
+                {
                     struct client *cli = (struct client *)ev[i].data.ptr;
                     printf("Epoll triggered: data from client\n");
                     client_action(cli);
@@ -115,31 +118,31 @@ void accept_client(int socket) {
         perror("epoll() failed");
         exit(EXIT_FAILURE);
     }
+    write(client->client_sock, "+OK POP3 server ready\n\r", 23);
 }
 
 void client_action(struct client *client)
 {
-    struct epoll_event evs;
     size_t len = 0;
     ioctl(client->client_sock, FIONREAD, &len);
     if(!len)
     {
-        client_close_connection(client);
+        client_close_connection(client, "no available bytes to read");
     }
     else
     {
-        printf("Received client request:\n");
+        printf("Received client request: bytes to read: %d\n", len);
         char buf[len-1];
         read(client->client_sock, buf, len);
         client_action_command(client, buf, len);
     }
 }
 
-void client_close_connection(struct client *client)
+void client_close_connection(struct client *client, char *reason)
 {
     close(client->client_sock);
     free(client);
-    printf("Client closed connection\n");
+    printf("Client closed connection: %s\n", reason);
     fflush(stdout);
 }
 
@@ -162,7 +165,7 @@ void client_action_command(struct client *client, char *cmd, size_t len)
     {
         if(cmd_args > pop3_max_arg)
         {
-            client_close_connection(client);
+            client_close_connection(client, "too many arguments passed");
             break;
         }
         else
@@ -172,6 +175,7 @@ void client_action_command(struct client *client, char *cmd, size_t len)
             pch = strtok_r(NULL, " ", &saveptr);
         }
     }
+    write(client->client_sock, "+OK\n\r", 5);
     //cond - CRLF
     for(int i=0; i<cmd_args; i++)
     {
