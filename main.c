@@ -175,7 +175,8 @@ void client_action_command(struct client *client, char *cmd, size_t len)
             pch = strtok_r(NULL, " ", &saveptr);
         }
     }
-    write(client->client_sock, "+OK\n\r", 5);
+    write(client->client_sock, "+OK List of supported mechanisms follows:\n\rLOGIN\n\rPLAIN\n\r.\n\r", 60);
+    write(STDOUT_FILENO, "+OK List of supported mechanisms follows:\n\rLOGIN\n\rPLAIN\n\r.\n\r", 60);
     //cond - CRLF
     for(int i=0; i<cmd_args; i++)
     {
