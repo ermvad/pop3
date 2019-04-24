@@ -7,7 +7,7 @@
 #define postboxes_config_file "postboxes.ini"
 #define postboxes_folder_path "postboxes"
 #define account_config_file "account.ini"
-#define pop3_max_arg 10
+#define pop3_max_arg 5
 
 struct client
 {

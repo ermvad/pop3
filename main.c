@@ -23,6 +23,7 @@ void accept_client(int);
 void client_action(struct client *);
 void client_action_command(struct client *, char *, size_t);
 void client_close_connection(struct client *, char *);
+void print_command(char *);
 
 int main() {
     server.port = pop3_server_port;
@@ -110,6 +111,8 @@ void accept_client(int socket) {
         perror("accept() failed");
         exit(EXIT_FAILURE);
     }
+    client->connection_status = 1;
+    client->pop3_session_status = 0;
     printf("Connected client - %s:%u\n", inet_ntoa(client->client_addr.sin_addr), ntohs(client->client_addr.sin_port));
     evs.events = EPOLLIN;
     evs.data.ptr = client;
@@ -118,7 +121,7 @@ void accept_client(int socket) {
         perror("epoll() failed");
         exit(EXIT_FAILURE);
     }
-    write(client->client_sock, "+OK POP3 server ready\n\r", 23);
+    write(client->client_sock, "+OK POP3 server ready\r\n", 23);
 }
 
 void client_action(struct client *client)
@@ -141,9 +144,16 @@ void client_action(struct client *client)
 void client_close_connection(struct client *client, char *reason)
 {
     close(client->client_sock);
+    client->connection_status = 0;
+    client->pop3_session_status = 0;
     free(client);
     printf("Client closed connection: %s\n", reason);
     fflush(stdout);
+}
+
+void print_command(char *cmd)
+{
+    printf("Command from client: %s\n", cmd);
 }
 
 void client_action_command(struct client *client, char *cmd, size_t len)
@@ -155,7 +165,7 @@ void client_action_command(struct client *client, char *cmd, size_t len)
     char cmd_line[len-1], cmd_line_tmp[len-1];
     memmove(cmd_line, cmd, len);
     cmd_line[len-1] = '\0';
-    printf("%s\n", cmd_line);
+    printf("Received data from client: %s\n", cmd_line);
     strcpy(cmd_line_tmp,cmd_line);
     char *saveptr;
     char *pch = strtok_r (cmd_line_tmp, " ", &saveptr);
@@ -172,14 +182,35 @@ void client_action_command(struct client *client, char *cmd, size_t len)
         {
             strcpy(cmd_token[cmd_args], pch);
             cmd_args++;
-            pch = strtok_r(NULL, " ", &saveptr);
+            pch = strtok_r(NULL, " \n\r", &saveptr);
         }
     }
-    write(client->client_sock, "+OK List of supported mechanisms follows:\n\rLOGIN\n\rPLAIN\n\r.\n\r", 60);
-    write(STDOUT_FILENO, "+OK List of supported mechanisms follows:\n\rLOGIN\n\rPLAIN\n\r.\n\r", 60);
-    //cond - CRLF
-    for(int i=0; i<cmd_args; i++)
+    if(strcmp(cmd_token[0], "CAPA") == 0)
     {
-        printf("%s\n", cmd_token[i]);
+        print_command(cmd_token[0]);
+        write(client->client_sock, "+OK List of supported mechanisms follows:\r\nLOGIN\r\nPLAIN\r\n.\r\n", 60);
     }
+    else if(strcmp(cmd_token[0], "AUTH'") == 0)
+    {
+        print_command(cmd_token[0]);
+    }
+    else if(strcmp(cmd_token[0], "USER") == 0)
+    {
+        print_command(cmd_token[0]);
+        if((client->connection_status == 1) && (client->pop3_session_status == 0))
+        {
+            char key[40];
+            ini_gets("pop3", "accounts", "AAA", key, 40, postboxes_config_file);
+            printf("%s\n", key);
+            print_command(cmd_token[0]);
+        }
+    }
+    else if(strcmp(cmd_token[0], "PASS") == 0)
+    {
+        print_command(cmd_token[0]);
+    }
+    //for(int i=0; i<cmd_args; i++)
+    //{
+    //   printf("%s\n", cmd_token[i]);
+    //}
 }
