@@ -18,12 +18,16 @@
 #define SPARESLOTS 128
 
 int efd;
+char **accounts;
 
 void accept_client(int);
 void client_action(struct client *);
 void client_action_command(struct client *, char *, size_t);
 void client_close_connection(struct client *, char *);
 void print_command(char *);
+char** tokenizer(char *, char *, int, int, int *);
+void load_accounts();
+
 
 int main() {
     server.port = pop3_server_port;
@@ -156,17 +160,38 @@ void print_command(char *cmd)
     printf("Command from client: %s\n", cmd);
 }
 
+char** tokenizer(char *cmd, char *token, int max_tokens, int len, int *tokens_num)
+{
+    char cmd_tmp[len-1];
+    strcpy(cmd_tmp,cmd);
+    char *saveptr;
+    char *pch = strtok_r (cmd_tmp, token, &saveptr);
+    int cmd_args = 0;
+    char **cmd_token = (char**) malloc(max_tokens * sizeof(char*));
+    cmd_token[0] = (char*) malloc(max_token_length * sizeof(char));
+    while (pch != NULL)
+    {
+        strcpy(cmd_token[cmd_args], pch);
+        cmd_args++;
+        cmd_token[cmd_args] = (char*) malloc(max_token_length * sizeof(char));
+        pch = strtok_r(NULL, token, &saveptr);
+    }
+    free(cmd_token[cmd_args]);
+    *tokens_num = cmd_args;
+    return cmd_token;
+}
+
 void client_action_command(struct client *client, char *cmd, size_t len)
 {
     //write(STDOUT_FILENO, cmd, len);
     //fflush(stdout);
     //if(len != write(client->client_sock, cmd, len))
     //    client_close_connection(client);
-    char cmd_line[len-1], cmd_line_tmp[len-1];
+    char cmd_line[len-1];//, cmd_line_tmp[len-1];
     memmove(cmd_line, cmd, len);
     cmd_line[len-1] = '\0';
     printf("Received data from client: %s\n", cmd_line);
-    strcpy(cmd_line_tmp,cmd_line);
+    /*strcpy(cmd_line_tmp,cmd_line);
     char *saveptr;
     char *pch = strtok_r (cmd_line_tmp, " ", &saveptr);
     int cmd_args = 0;
@@ -184,33 +209,37 @@ void client_action_command(struct client *client, char *cmd, size_t len)
             cmd_args++;
             pch = strtok_r(NULL, " \n\r", &saveptr);
         }
-    }
-    if(strcmp(cmd_token[0], "CAPA") == 0)
-    {
-        print_command(cmd_token[0]);
-        write(client->client_sock, "+OK List of supported mechanisms follows:\r\nLOGIN\r\nPLAIN\r\n.\r\n", 60);
-    }
-    else if(strcmp(cmd_token[0], "AUTH'") == 0)
-    {
-        print_command(cmd_token[0]);
-    }
-    else if(strcmp(cmd_token[0], "USER") == 0)
+    }*/
+    int tokens_num = 0;
+    char **cmd_token = tokenizer(cmd_line, " ", 6, len, &tokens_num);
+    if(strcmp(cmd_token[0], "USER") == 0)
     {
         print_command(cmd_token[0]);
         if((client->connection_status == 1) && (client->pop3_session_status == 0))
         {
             char key[40];
-            ini_gets("pop3", "accounts", "AAA", key, 40, postboxes_config_file);
+            ini_gets("pop3", "accounts", "AAA", key, sizeof(key), postboxes_config_file);
             printf("%s\n", key);
-            print_command(cmd_token[0]);
+            int accounts_num = 0;
+            char **accounts = tokenizer(key, ",", 128, 41, &accounts_num);
+            for(int i = 0; i < accounts_num; i++)
+            {
+                printf("acc: %s\n", accounts[i]);
+            }
+            for(int i = 0; i < accounts_num; i++)
+            {
+                free(accounts[i]);
+            }
+            free(accounts);
         }
     }
     else if(strcmp(cmd_token[0], "PASS") == 0)
     {
         print_command(cmd_token[0]);
     }
-    //for(int i=0; i<cmd_args; i++)
-    //{
-    //   printf("%s\n", cmd_token[i]);
-    //}
+    for(int i = 0; i < tokens_num; i++)
+    {
+        free(cmd_token[i]);
+    }
+    free(cmd_token);
 }
