@@ -16,7 +16,8 @@ struct client
     int connection_status; // 1 - connected, 0 disconnected
     int pop3_session_status; // 0 - unauthorized, 1 - authorization, 2 - transaction, 3 - update
     int busy;
-    char *name;
+    int total_letters;
+    char name[32];
     struct sockaddr_in client_addr;
 };
 struct server

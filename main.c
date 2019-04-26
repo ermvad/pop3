@@ -19,6 +19,7 @@
 
 int efd;
 char **accounts;
+int accounts_num = 0;
 
 void accept_client(int);
 void client_action(struct client *);
@@ -27,7 +28,6 @@ void client_close_connection(struct client *, char *);
 void print_command(char *);
 char** tokenizer(char *, char *, int, int, int *);
 void load_accounts();
-
 
 int main() {
     server.port = pop3_server_port;
@@ -151,7 +151,6 @@ void load_accounts()
 {
     char key[100];
     ini_gets("pop3", "accounts", "NULL", key, sizeof(key), postboxes_config_file);
-    int accounts_num = 0;
     accounts = tokenizer(key, ",", 128, 101, &accounts_num);
     for(int i = 0; i < accounts_num; i++)
     {
@@ -225,18 +224,116 @@ void client_action_command(struct client *client, char *cmd, size_t len)
         }
     }*/
     int tokens_num = 0;
-    char **cmd_token = tokenizer(cmd_line, " ", 6, len, &tokens_num);
+    char **cmd_token = tokenizer(cmd_line, " \r\n", 6, len, &tokens_num);
     if(strcmp(cmd_token[0], "USER") == 0)
     {
-        print_command(cmd_token[0]);
         if((client->connection_status == 1) && (client->pop3_session_status == 0))
         {
-
+            for(int i = 0; i < accounts_num; i++)
+            {
+                if(strcmp(accounts[i], cmd_token[1]) == 0)
+                {
+                    client->pop3_session_status = 1;
+                    write(client->client_sock, "+OK Name is valid mailbox\r\n", 27);
+                    strcpy(client->name, cmd_token[1]);
+                }
+            }
         }
     }
     else if(strcmp(cmd_token[0], "PASS") == 0)
     {
-        print_command(cmd_token[0]);
+        char key[100];
+        char path[100];
+        sprintf(path, "%s/%s/%s", postboxes_folder_path, client->name, account_config_file);
+        ini_gets("account", "password", "NULL", key, sizeof(key), path);
+        //printf("aksd: %s\n", key);
+        if(strcmp(key, cmd_token[1]) == 0)
+        {
+            client->pop3_session_status = 2;
+            write(client->client_sock, "+OK Mailbox locked and ready\r\n", 30);
+        }
+    }
+    else if(strcmp(cmd_token[0], "LIST") == 0)
+    {
+        if(client->pop3_session_status == 2)
+        {
+            char key[100];
+            char path[100];
+            sprintf(path, "%s/%s/%s", postboxes_folder_path, client->name, account_config_file);
+            ini_gets("mail", "mails", "NULL", key, sizeof(key), path);
+            int letters_num = 0;
+            char **letters = tokenizer(key, ",", 64, 8, &letters_num);
+            //
+            char response[1000];
+            client->total_letters = letters_num;
+            sprintf(response, "+OK scan listing follows\r\n");
+            for(int i = 0; i < letters_num; i++)
+            {
+                sprintf(response, "%s%s %d\r\n", response, letters[i], (i+100)*2);
+            }
+            if(letters_num)
+            {
+                sprintf(response, "%s.\r\n", response);
+            }
+            write(client->client_sock, response, strlen(response));
+            //
+            for(int i = 0; i < letters_num; i++)
+            {
+                free(letters[i]);
+            }
+            free(letters);
+        }
+    }
+    else if(strcmp(cmd_token[0], "STAT") == 0)
+    {
+        if(client->pop3_session_status == 2)
+        {
+            char response[100];
+            sprintf(response, "+OK 2 300\r\n");
+            write(client->client_sock, response, strlen(response));
+        }
+
+    }
+    else if(strcmp(cmd_token[0], "RETR") == 0)
+    {
+        if(client->pop3_session_status == 2)
+        {
+            FILE *f;
+            char path[50];
+            sprintf(path, "%s/%s/%s", postboxes_folder_path, client->name, cmd_token[1]);
+            if((f = fopen(path, "r")) == NULL)
+            {
+                write(client->client_sock, "-ERR\r\n", 6);
+            }
+            else
+            {
+                char buffer[128], response[2048];
+                sprintf(response, "+OK, Message follows:\r\n");
+                //while (fscanf (f, "%s", buffer) != EOF)
+                while (fgets (buffer, 128, f) != NULL)
+                {
+                    sprintf(buffer, "%s", buffer);
+                    sprintf(response, "%s%s", response, buffer);
+                }
+                sprintf(response, "%s.\r\n", response);
+                printf("%s", response);
+                write(client->client_sock, response, strlen(response));
+                fclose(f);
+            }
+        }
+    }
+    else if(strcmp(cmd_token[0], "NOOP") == 0)
+    {
+        write(client->client_sock, "+OK\r\n", 5);
+    }
+    else if(strcmp(cmd_token[0], "QUIT") == 0)
+    {
+        write(client->client_sock, "+OK\r\n", 5);
+        client_close_connection(client, "QUIT command");
+    }
+    else
+    {
+        write(client->client_sock, "-ERR\r\n", 6);
     }
     for(int i = 0; i < tokens_num; i++)
     {
