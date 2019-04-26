@@ -73,6 +73,8 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
+    load_accounts();
+
     while (1)
     {
         int n;
@@ -142,6 +144,18 @@ void client_action(struct client *client)
         char buf[len-1];
         read(client->client_sock, buf, len);
         client_action_command(client, buf, len);
+    }
+}
+
+void load_accounts()
+{
+    char key[100];
+    ini_gets("pop3", "accounts", "NULL", key, sizeof(key), postboxes_config_file);
+    int accounts_num = 0;
+    accounts = tokenizer(key, ",", 128, 101, &accounts_num);
+    for(int i = 0; i < accounts_num; i++)
+    {
+        printf("Loaded account: %s\n", accounts[i]);
     }
 }
 
@@ -217,20 +231,7 @@ void client_action_command(struct client *client, char *cmd, size_t len)
         print_command(cmd_token[0]);
         if((client->connection_status == 1) && (client->pop3_session_status == 0))
         {
-            char key[40];
-            ini_gets("pop3", "accounts", "AAA", key, sizeof(key), postboxes_config_file);
-            printf("%s\n", key);
-            int accounts_num = 0;
-            char **accounts = tokenizer(key, ",", 128, 41, &accounts_num);
-            for(int i = 0; i < accounts_num; i++)
-            {
-                printf("acc: %s\n", accounts[i]);
-            }
-            for(int i = 0; i < accounts_num; i++)
-            {
-                free(accounts[i]);
-            }
-            free(accounts);
+
         }
     }
     else if(strcmp(cmd_token[0], "PASS") == 0)
