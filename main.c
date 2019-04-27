@@ -248,16 +248,22 @@ void client_action_command(struct client *client, char *cmd, size_t len)
         ini_gets("account", "password", "NULL", key, sizeof(key), path);
         if(strcmp(key, cmd_token[1]) == 0)
         {
-            client->pop3_session_status = 2;
-            write(client->client_sock, "+OK Mailbox locked and ready\r\n", 30);
-            ///
-            char keys[100];
-            char paths[100];
-            sprintf(paths, "%s/%s/%s", postboxes_folder_path, client->name, account_config_file);
-            ini_gets("mail", "mails", "NULL", keys, sizeof(keys), paths);
-            int letters_num = 0;
-            tokenizer(keys, ",", 64, 8, &letters_num);
-            client->total_letters = letters_num;
+            if(client->pop3_session_status == 1) {
+                client->pop3_session_status = 2;
+                write(client->client_sock, "+OK Mailbox locked and ready\r\n", 30);
+                ///
+                char keys[100];
+                char paths[100];
+                sprintf(paths, "%s/%s/%s", postboxes_folder_path, client->name, account_config_file);
+                ini_gets("mail", "mails", "NULL", keys, sizeof(keys), paths);
+                int letters_num = 0;
+                tokenizer(keys, ",", 64, 8, &letters_num);
+                client->total_letters = letters_num;
+            }
+            else
+            {
+                write(client->client_sock, "-ERR [AUTH] Must give USER command\r\n", 36);
+            }
         }
     }
     else if(strcmp(cmd_token[0], "LIST") == 0)
@@ -329,7 +335,7 @@ void client_action_command(struct client *client, char *cmd, size_t len)
                     sprintf(response, "%s%s", response, buffer);
                 }
                 sprintf(response, "%s.\r\n", response);
-                printf("%s", response);
+                //printf("%s", response);
                 write(client->client_sock, response, strlen(response));
                 fclose(f);
             }
