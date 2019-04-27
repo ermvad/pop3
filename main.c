@@ -246,11 +246,18 @@ void client_action_command(struct client *client, char *cmd, size_t len)
         char path[100];
         sprintf(path, "%s/%s/%s", postboxes_folder_path, client->name, account_config_file);
         ini_gets("account", "password", "NULL", key, sizeof(key), path);
-        //printf("aksd: %s\n", key);
         if(strcmp(key, cmd_token[1]) == 0)
         {
             client->pop3_session_status = 2;
             write(client->client_sock, "+OK Mailbox locked and ready\r\n", 30);
+            ///
+            char keys[100];
+            char paths[100];
+            sprintf(paths, "%s/%s/%s", postboxes_folder_path, client->name, account_config_file);
+            ini_gets("mail", "mails", "NULL", keys, sizeof(keys), paths);
+            int letters_num = 0;
+            tokenizer(keys, ",", 64, 8, &letters_num);
+            client->total_letters = letters_num;
         }
     }
     else if(strcmp(cmd_token[0], "LIST") == 0)
@@ -265,19 +272,19 @@ void client_action_command(struct client *client, char *cmd, size_t len)
             char **letters = tokenizer(key, ",", 64, 8, &letters_num);
             //
             char response[1000];
-            client->total_letters = letters_num;
             sprintf(response, "+OK scan listing follows\r\n");
-            for(int i = 0; i < letters_num; i++)
+            for(int i = 0; i < client->total_letters; i++)
             {
-                sprintf(response, "%s%s %d\r\n", response, letters[i], (i+100)*2);
+                sprintf(response, "%s%s %d\r\n", response, letters[i], (i*100)+100);
             }
-            if(letters_num)
+            if(client->total_letters)
             {
                 sprintf(response, "%s.\r\n", response);
             }
+            printf("resp: %s", response);
             write(client->client_sock, response, strlen(response));
             //
-            for(int i = 0; i < letters_num; i++)
+            for(int i = 0; i < client->total_letters; i++)
             {
                 free(letters[i]);
             }
@@ -288,8 +295,14 @@ void client_action_command(struct client *client, char *cmd, size_t len)
     {
         if(client->pop3_session_status == 2)
         {
+            int val = 0;
+            for(int i = 0; i < client->total_letters; i++)
+            {
+                val += (i*100)+100;
+            }
             char response[100];
-            sprintf(response, "+OK 2 300\r\n");
+            sprintf(response, "+OK %d %d\r\n", client->total_letters, val);
+            printf("res: %s", response);
             write(client->client_sock, response, strlen(response));
         }
 
