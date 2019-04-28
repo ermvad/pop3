@@ -14,6 +14,8 @@
 #include "pop3.h"
 #include "minini_12b/minIni.h"
 
+#define DBG_MESSAGES 1
+
 #define sizearray(a)  (sizeof(a) / sizeof((a)[0]))
 #define SPARESLOTS 128
 
@@ -56,7 +58,8 @@ int main() {
         perror("listen() failed");
         exit(EXIT_FAILURE);
     }
-    printf("Server started. Listening port %d for incoming connections...\n", server.port);
+    if(DBG_MESSAGES)
+        printf("Server started. Listening port %d for incoming connections...\n", server.port);
 
     efd = epoll_create(SPARESLOTS);
     if (efd < 0)
@@ -84,7 +87,8 @@ int main() {
             perror("poll() failed");
             exit(EXIT_FAILURE);
         }
-        printf("Epoll events: %d\n", n);
+        if(DBG_MESSAGES)
+            printf("Epoll events: %d\n", n);
         if (n > 0)
         {
             for(int i = 0; i < n; i++)
@@ -92,13 +96,15 @@ int main() {
                 struct server srv = *(struct server *)ev[i].data.ptr;
                 if (srv.server_sock == server.server_sock)
                 {
-                    printf("Epoll triggered: incoming connection\n");
+                    if(DBG_MESSAGES)
+                        printf("Epoll triggered: incoming connection\n");
                     accept_client(server.server_sock);
                 }
                 else
                 {
                     struct client *cli = (struct client *)ev[i].data.ptr;
-                    printf("Epoll triggered: data from client\n");
+                    if(DBG_MESSAGES)
+                        printf("Epoll triggered: data from client\n");
                     client_action(cli);
                 }
             }
@@ -119,7 +125,8 @@ void accept_client(int socket) {
     }
     client->connection_status = 1;
     client->pop3_session_status = 0;
-    printf("Connected client - %s:%u\n", inet_ntoa(client->client_addr.sin_addr), ntohs(client->client_addr.sin_port));
+    if(DBG_MESSAGES)
+        printf("Connected client - %s:%u\n", inet_ntoa(client->client_addr.sin_addr), ntohs(client->client_addr.sin_port));
     evs.events = EPOLLIN;
     evs.data.ptr = client;
     if (epoll_ctl(efd, EPOLL_CTL_ADD, client->client_sock, &evs))
@@ -140,7 +147,8 @@ void client_action(struct client *client)
     }
     else
     {
-        printf("Received client request: bytes to read: %d\n", len);
+        if(DBG_MESSAGES)
+            printf("Received client request: bytes to read: %d\n", len);
         char buf[len-1];
         read(client->client_sock, buf, len);
         client_action_command(client, buf, len);
@@ -154,7 +162,8 @@ void load_accounts()
     accounts = tokenizer(key, ",", 128, 101, &accounts_num);
     for(int i = 0; i < accounts_num; i++)
     {
-        printf("Loaded account: %s\n", accounts[i]);
+        if(DBG_MESSAGES)
+            printf("Loaded account: %s\n", accounts[i]);
     }
 }
 
@@ -164,13 +173,17 @@ void client_close_connection(struct client *client, char *reason)
     client->connection_status = 0;
     client->pop3_session_status = 0;
     free(client);
-    printf("Client closed connection: %s\n", reason);
-    fflush(stdout);
+    if(DBG_MESSAGES)
+    {
+        printf("Client closed connection: %s\n", reason);
+        fflush(stdout);
+    }
 }
 
 void print_command(char *cmd)
 {
-    printf("Command from client: %s\n", cmd);
+    if(DBG_MESSAGES)
+        printf("Command from client: %s\n", cmd);
 }
 
 char** tokenizer(char *cmd, char *token, int max_tokens, int len, int *tokens_num)
@@ -203,7 +216,8 @@ void client_action_command(struct client *client, char *cmd, size_t len)
     char cmd_line[len-1];//, cmd_line_tmp[len-1];
     memmove(cmd_line, cmd, len);
     cmd_line[len-1] = '\0';
-    printf("Received data from client: %s\n", cmd_line);
+    if(DBG_MESSAGES)
+        printf("Received data from client: %s\n", cmd_line);
     /*strcpy(cmd_line_tmp,cmd_line);
     char *saveptr;
     char *pch = strtok_r (cmd_line_tmp, " ", &saveptr);
@@ -287,7 +301,8 @@ void client_action_command(struct client *client, char *cmd, size_t len)
             {
                 sprintf(response, "%s.\r\n", response);
             }
-            printf("resp: %s", response);
+            if(DBG_MESSAGES)
+                printf("resp: %s", response);
             write(client->client_sock, response, strlen(response));
             //
             for(int i = 0; i < client->total_letters; i++)
@@ -308,7 +323,8 @@ void client_action_command(struct client *client, char *cmd, size_t len)
             }
             char response[100];
             sprintf(response, "+OK %d %d\r\n", client->total_letters, val);
-            printf("res: %s", response);
+            if(DBG_MESSAGES)
+                printf("res: %s", response);
             write(client->client_sock, response, strlen(response));
         }
 
